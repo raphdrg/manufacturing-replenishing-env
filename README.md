@@ -76,20 +76,3 @@ volatile market.
 ## Benchmark
 
 ![Success rate by tier](benchmark.png)
-
-## Design notes
-
-The environment is built like a robotics sim, not like a business simulator. The plant is the
-"physics", the ERP is a sensor, and the interesting difficulty is that the two disagree.
-
-| What this environment does | Where the idea comes from |
-|---|---|
-| The simulator keeps hidden `true_stock`; the agent only ever sees `recorded_stock`, which drifts from it through unbooked scrap and short deliveries. The drift is **biased one way** — the ERP always overstates the shelf — so trusting it causes stockouts. | The privileged-state / state-estimate split. A robot acts on a noisy estimate, not on ground truth, and sensor error is rarely zero-mean. |
-| Randomising *data pathologies* — record error, supplier lateness, rush orders, price volatility — rather than friction and mass. | Domain and dynamics randomisation (Tobin et al. 2017; Peng et al. 2018), moved from physics to enterprise data. |
-| Every disturbance is drawn once from the seed into a fixed table before the episode starts, so it cannot react to the agent, and two rollouts on one seed face exactly the same world. | Common random numbers for fair policy comparison and deterministic replay (Ng & Jordan's PEGASUS, 2000); disturbance rejection in control. |
-| A clairvoyant planner that reads the hidden tables is used to *certify* instances by rejection sampling, so a zero always means the policy failed, never that the instance was impossible. | Privileged teachers (Chen et al. 2020; Lee et al. 2020) — used here for feasibility rather than for distillation. |
-| Reward is computed on the replayed **true** trajectory, never on the records. Scoring the records instead is a documented exploit: a correct planner passes while the factory starves. | Reward from simulator ground truth, not from the observation, so the policy cannot learn to satisfy its own sensor. |
-| Binary, conjunctive success — served *and* within capacity *and* within budget. No partial credit. | Task-completion scoring in manipulation benchmarks. Weighted partial credit creates exchange rates between failures, and an optimiser finds them. |
-| A separate verifier replays the HMAC-chained action log with a second, independent implementation of the dynamics and recomputes every number it is given. | Differential testing of safety-critical controllers, plus offline evaluation from logged rollouts. |
-| The buffers a good policy needs cannot be triggered by evidence: lateness is observable only after the late delivery, so a prior has to carry the early days and observation only refines it. | Latent environment parameters estimated online from a history of observations (RMA, Kumar et al. 2021). Our first agent waited for evidence and scored no better than the naive one. |
-| Three tiers raise all the disturbances together, and an episode is a dict of Python objects, so hundreds run per container. | Curriculum over randomisation ranges (OpenAI's automatic domain randomisation, 2019) and massively parallel simulation (Isaac Gym, 2021). |
