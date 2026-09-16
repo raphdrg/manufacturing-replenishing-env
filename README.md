@@ -1,5 +1,6 @@
 # Manufacturing Replenishing RL Environment
 
+Prompt:
 A small plant builds products to a forecast plan. You are the materials planner: order
 components so every production run can run in full, the warehouse never overflows and the
 budget holds. Success is binary and checked by a verifier that replays your actions against
