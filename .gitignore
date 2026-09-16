@@ -1,0 +1,23 @@
+# virtual environments
+.venv/
+venv/
+env/
+
+# python bytecode
+__pycache__/
+*.py[cod]
+
+# tool caches
+.mypy_cache/
+.ruff_cache/
+
+# build artifacts
+dist/
+build/
+*.egg-info/
+
+# resolved by `uv run` on demand; the dependency contract lives in pyproject.toml
+uv.lock
+
+# macOS
+.DS_Store

@@ -1,0 +1,744 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Material Restocking Environment</title>
+<style>
+  :root {
+    --bg: #f7f7f8; --panel: #ffffff; --ink: #14161a; --muted: #6b7280;
+    --line: #e3e5e9; --accent: #2f6fdd; --accent-ink: #ffffff;
+    --ok: #128a52; --warn: #b26a00; --bad: #c22b2b;
+    --bar-bg: #e9ecf2; --today: #fff4d6; --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1115; --panel: #161a20; --ink: #e7e9ee; --muted: #9aa3b2;
+      --line: #262c35; --accent: #5b8def; --accent-ink: #0b0d10;
+      --ok: #3ecf8e; --warn: #f0b429; --bad: #ff6b6b;
+      --bar-bg: #232932; --today: #33301f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 system-ui, -apple-system, sans-serif;
+  }
+  header {
+    display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between;
+    padding: 12px 18px; border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 5;
+  }
+  h1 { font-size: 15px; margin: 0; letter-spacing: .02em; }
+  h1 small { color: var(--muted); font-weight: 400; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  main { padding: 18px; display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); align-items: start; }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  section h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 10px; }
+  .wide { grid-column: 1 / -1; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { text-align: right; padding: 4px 6px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; }
+  tr.today td { background: var(--today); }
+  td.neg { color: var(--bad); font-weight: 600; }
+  button {
+    font: inherit; padding: 6px 11px; border-radius: 7px; border: 1px solid var(--line);
+    background: var(--panel); color: var(--ink); cursor: pointer;
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  input, select {
+    font: inherit; padding: 5px 7px; border-radius: 7px; border: 1px solid var(--line);
+    background: var(--bg); color: var(--ink);
+  }
+  input[type=number] { width: 88px; }
+  .kv { display: flex; justify-content: space-between; gap: 10px; padding: 2px 0; }
+  .kv span:last-child { font-variant-numeric: tabular-nums; }
+  .muted { color: var(--muted); }
+  .logwrap { max-height: 260px; overflow: auto; margin: -2px 0 0; }
+  .logwrap:empty::after { content: "Nothing yet."; color: var(--muted); font-size: 12px; }
+  table.mini th { position: sticky; top: 0; background: var(--panel); z-index: 1; }
+  table.mini td, table.mini th { padding: 3px 6px; font-size: 12px; }
+  table.mini tr.short td { background: color-mix(in srgb, var(--bad) 12%, transparent); }
+  table.mini tr.rush td { background: color-mix(in srgb, var(--warn) 14%, transparent); }
+  .tag {
+    display: inline-block; font-size: 10px; letter-spacing: .06em; padding: 1px 6px;
+    border-radius: 99px; border: 1px solid var(--line); color: var(--muted);
+  }
+  .tag.ok { color: var(--ok); border-color: var(--ok); }
+  .tag.rush { color: var(--warn); border-color: var(--warn); }
+  .tag.short { color: var(--bad); border-color: var(--bad); }
+  .ev {
+    display: flex; gap: 9px; align-items: baseline; padding: 4px 2px 4px 8px;
+    border-left: 2px solid var(--line); border-bottom: 1px solid var(--line);
+  }
+  .ev:last-child { border-bottom: none; }
+  .ev.receipt { border-left-color: var(--ok); }
+  .ev.order { border-left-color: var(--accent); }
+  .ev.rush { border-left-color: var(--warn); }
+  .ev.bad { border-left-color: var(--bad); }
+  .ev .day {
+    font-family: var(--mono); font-size: 11px; color: var(--muted); flex: 0 0 auto;
+    min-width: 38px;
+  }
+  .ev .msg { font-size: 12px; }
+  .ev.bad .msg { color: var(--bad); }
+  .banner { padding: 9px 14px; font-size: 13px; display: none; }
+  .banner.show { display: block; }
+  .banner.error { background: var(--bad); color: #fff; }
+  .banner.info { background: var(--bar-bg); color: var(--ink); border-bottom: 1px solid var(--line); }
+  .verdict { font-size: 22px; font-weight: 700; }
+  .verdict.pass { color: var(--ok); } .verdict.fail { color: var(--bad); }
+  code { font-family: var(--mono); font-size: 12px; }
+  ul.reasons { margin: 8px 0 0; padding-left: 20px; }
+  ul.reasons li { font-size: 13px; line-height: 1.5; margin-bottom: 3px; }
+  ul.reasons li::marker { color: var(--bad); }
+  details summary { cursor: pointer; margin-top: 10px; }
+  .codes { font-family: var(--mono); font-size: 11px; color: var(--muted); padding: 6px 0 0; }
+  .codes div { padding: 1px 0; }
+  .hint { font-size: 12px; color: var(--warn); min-height: 18px; }
+  .brief { display: grid; grid-template-columns: minmax(0, 2fr) minmax(250px, 1fr); gap: 20px; }
+  .brief aside { border-left: 1px solid var(--line); padding-left: 18px; }
+  @media (max-width: 760px) {
+    .brief { grid-template-columns: 1fr; }
+    .brief aside { border-left: none; border-top: 1px solid var(--line); padding: 14px 0 0; }
+  }
+  .instruction { font-size: 15px; line-height: 1.65; margin: 0; color: var(--ink); }
+  .caption { font-size: 12px; color: var(--muted); margin: 10px 0 0; }
+  .bad { color: var(--bad); font-weight: 600; }
+  td.good { color: var(--ok); font-weight: 600; }
+  td.spark { font-family: var(--mono); letter-spacing: 1px; color: var(--accent); text-align: left; }
+  .spin { display: inline-block; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--muted); border-top-color: transparent; animation: s .7s linear infinite; vertical-align: -1px; }
+  @keyframes s { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Material Restocking Environment <small id="ver"></small></h1>
+  <div class="row">
+    <label>Tier
+      <select id="tier">
+        <option value="easy">Easy</option>
+        <option value="medium" selected>Medium</option>
+        <option value="hard">Hard</option>
+      </select>
+    </label>
+    <button id="newEp" class="primary">New Episode</button>
+  </div>
+</header>
+
+<div id="banner" class="banner"></div>
+<div id="note" class="banner info"></div>
+
+<main>
+  <section class="wide" id="briefPanel">
+    <div class="brief">
+      <div>
+        <h2>Task Instruction</h2>
+        <p class="instruction" id="instruction">Loading&hellip;</p>
+        <p class="caption">
+          This is the exact prompt an agent receives when the episode is created.
+          Every figure on this page comes from the ERP records; the true warehouse
+          contents are hidden and only the verifier sees them.
+        </p>
+      </div>
+      <aside>
+        <h2>State</h2>
+        <div class="kv"><span>Role</span><span>Materials Planner</span></div>
+        <div class="kv"><span>Horizon</span><span id="setHorizon">-</span></div>
+        <div class="kv"><span>Days Remaining</span><span id="setDaysLeft">-</span></div>
+        <div class="kv"><span>Initial Budget</span><span id="setBudget">-</span></div>
+        <div class="kv"><span>Remaining Budget</span><span id="setBudgetLeft">-</span></div>
+        <div class="kv"><span>Warehouse Capacity</span><span id="setCapacity">-</span></div>
+        <div class="kv"><span>Recorded Volume Used</span><span id="setVolume">-</span></div>
+        <div class="kv"><span>Late Deliveries Seen</span><span id="setLate">-</span></div>
+        <div class="kv"><span>Rush Order Units Seen</span><span id="setSurge">-</span></div>
+        <div class="kv"><span>Number Of Products</span><span id="setProducts">-</span></div>
+        <div class="kv"><span>Number Of Components</span><span id="setComponents">-</span></div>
+        <div class="kv"><span>Actions Remaining</span><span id="setActionsLeft">-</span></div>
+      </aside>
+    </div>
+  </section>
+
+  <section>
+    <h2>Actions</h2>
+    <div class="row" style="margin-bottom:8px">
+      <select id="poSku"></select>
+      <input id="poQty" type="number" min="1" step="1" placeholder="Qty" />
+      <button id="poBtn">Create PO</button>
+    </div>
+    <div class="hint" id="poHint"></div>
+    <div class="row" style="margin-top:10px">
+      <button id="nextBtn" class="primary">Advance Day</button>
+      <button id="runOutBtn">Run Out The Horizon</button>
+      <button id="verifyBtn" disabled>Verify</button>
+    </div>
+    <p class="caption">
+      An episode cannot be ended early: it always runs the full horizon. Advancing a
+      day books goods receipts and then consumes components for that day's production.
+    </p>
+  </section>
+
+  <section id="verdictPanel" style="display:none">
+    <h2>Verifier</h2>
+    <div class="verdict" id="verdict">-</div>
+    <div class="muted" id="verdictNote"></div>
+    <ul class="reasons" id="reasons"></ul>
+    <details id="codesBox" style="display:none">
+      <summary class="caption">Verifier reason codes</summary>
+      <div class="codes" id="codes"></div>
+    </details>
+    <div id="diagnostics" style="margin-top:8px;font-size:12px"></div>
+  </section>
+
+  <section class="wide">
+    <h2>Components: Recorded Stock and Supplier Quotes</h2>
+    <div style="overflow:auto">
+      <table>
+        <thead><tr>
+          <th>SKU</th><th>On Hand</th><th>On Order</th><th>Lead</th><th>MOQ / Lot</th>
+          <th>m3/pc</th><th>List</th><th>Today</th><th>Change</th>
+          <th>Min Seen</th><th>Max Seen</th><th>Trend So Far</th>
+        </tr></thead>
+        <tbody id="invBody"></tbody>
+      </table>
+    </div>
+    <p class="caption">
+      The price booked is the quote on the day the order is placed. Only days already
+      elapsed are shown: the future path is unknown. Min, max and trend cover this
+      episode so far, which is the same information an agent could keep from its own
+      observations.
+    </p>
+  </section>
+
+  <section class="wide">
+    <h2>Plan and Component Requirements</h2>
+    <div style="overflow:auto">
+      <table id="planTable"><thead></thead><tbody></tbody></table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Open Purchase Orders</h2>
+    <table>
+      <thead><tr><th>PO</th><th>SKU</th><th>Qty</th><th>Placed</th><th>Promised</th><th>State</th></tr></thead>
+      <tbody id="poBody"></tbody>
+    </table>
+    <p class="muted" id="poEmpty" style="font-size:12px">None</p>
+  </section>
+
+  <section>
+    <h2>Production Log</h2>
+    <div class="logwrap" id="prodLog"></div>
+    <p class="caption">
+      Forecast against what the day actually required. A run marked RUSH grew on the
+      day; SHORT means the material was not there.
+    </p>
+  </section>
+
+  <section>
+    <h2>Event Log</h2>
+    <div class="logwrap" id="eventLog"></div>
+  </section>
+</main>
+
+<script>
+"use strict";
+/* mrp-env human play UI.
+   Deliberately dependency-free: no build step, no CDN, works offline inside the
+   container. Every network call goes through api() so that timeouts, HTTP errors
+   and lost episodes surface as a banner instead of a silent dead page, and every
+   render goes through draw() which is wrapped so a malformed field cannot leave
+   the page half-updated. */
+
+const $ = (id) => document.getElementById(id);
+const REQUEST_TIMEOUT_MS = 8000;
+
+const state = {
+  episodeId: null, obs: null, static: null, instruction: "", busy: false,
+  finished: false, verified: null, online: false, lastError: null,
+  tier: null, seed: null,
+  // quotes seen so far, appended once per day. Built from the observations the
+  // server already sends, so watching the market here costs no tool calls -
+  // the same deal an agent gets.
+  priceHistory: {}, priceDay: null, lateIds: new Set(),
+};
+
+/* ---------- transport ------------------------------------------------- */
+
+async function api(path, options = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), options.timeout || REQUEST_TIMEOUT_MS);
+  try {
+    const res = await fetch(path, {
+      method: options.method || "GET",
+      headers: options.body ? { "content-type": "application/json" } : undefined,
+      body: options.body ? JSON.stringify(options.body) : undefined,
+      signal: controller.signal,
+      cache: "no-store",
+    });
+    const text = await res.text();
+    let data = null;
+    if (text) { try { data = JSON.parse(text); } catch { data = { detail: text.slice(0, 400) }; } }
+    if (!res.ok) {
+      const err = new Error((data && (data.detail || data.message)) || `HTTP ${res.status}`);
+      err.status = res.status;
+      throw err;
+    }
+    setOnline(true);
+    return data;
+  } catch (err) {
+    if (err.name === "AbortError") {
+      const e = new Error("request timed out - is the server still running?");
+      e.status = 0; setOnline(false); throw e;
+    }
+    if (err.status === undefined) setOnline(false);
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function setOnline(ok) {
+  // no status light: a request that fails raises a banner with the actual reason,
+  // which is more useful than a green dot that is green almost all of the time
+  state.online = ok;
+}
+
+function showError(message, status) {
+  state.lastError = message;
+  const b = $("banner");
+  b.className = "banner error show";
+  b.textContent = status ? `${message} (HTTP ${status})` : message;
+}
+function clearError() { $("banner").className = "banner"; $("banner").textContent = ""; }
+function showNote(message) {
+  const n = $("note");
+  if (!message) { n.className = "banner info"; n.textContent = ""; return; }
+  n.className = "banner info show"; n.textContent = message;
+}
+
+/* ---------- small DOM helpers ---------------------------------------- */
+
+function cell(value, cls) {
+  const td = document.createElement("td");
+  td.textContent = value === null || value === undefined ? "-" : String(value);
+  if (cls) td.className = cls;
+  return td;
+}
+function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
+function fmt(n, digits = 2) {
+  const v = Number(n);
+  return Number.isFinite(v) ? v.toFixed(digits) : "-";
+}
+
+/* ---------- rendering ------------------------------------------------ */
+
+function draw() {
+  try { render(); }
+  catch (err) { showError("display error: " + err.message); }
+}
+
+function recordPrices(obs) {
+  if (!obs || state.priceDay === obs.day) return;
+  state.priceDay = obs.day;
+  (obs.inventory || []).forEach((row) => {
+    if (!(row.unit_price_today > 0)) return;
+    if (!state.priceHistory[row.sku]) state.priceHistory[row.sku] = [];
+    state.priceHistory[row.sku].push(row.unit_price_today);
+  });
+}
+
+const SPARK = "\u2581\u2582\u2583\u2584\u2585\u2586\u2587\u2588";
+
+function sparkline(values) {
+  if (!values || values.length < 2) return "";
+  const lo = Math.min(...values), hi = Math.max(...values);
+  if (!(hi > lo)) return SPARK[0].repeat(values.length);
+  return values
+    .map((v) => SPARK[Math.min(SPARK.length - 1, Math.floor(((v - lo) / (hi - lo)) * (SPARK.length - 1)))])
+    .join("");
+}
+
+function render() {
+  const obs = state.obs, st = state.static;
+  if (!obs || !st) return;
+  recordPrices(obs);
+
+  $("instruction").textContent = state.instruction || "";
+
+  // The State box carries master data and the three budgets that run down. The
+  // tier is deliberately absent: difficulty is not something the planner knows.
+  const daysLeft = Math.max(0, (st.horizon ?? 0) - (obs.day ?? 0));
+  const actionsLeft = Math.max(0, (obs.step_limit ?? 0) - (obs.steps_used ?? 0));
+  $("setHorizon").textContent = `${st.horizon} days`;
+  $("setDaysLeft").textContent = `${daysLeft} ${daysLeft === 1 ? "day" : "days"}`;
+  $("setBudget").textContent = `${fmt(st.budget_eur)} EUR`;
+  $("setBudgetLeft").textContent = `${fmt(obs.budget_remaining)} EUR`;
+  // an overdrawn budget is not blocked by the ERP, so it has to be visible here
+  $("setBudgetLeft").className = obs.budget_remaining < 0 ? "bad" : "";
+  $("setCapacity").textContent = `${fmt(st.capacity_m3)} m3`;
+  const volume = (obs.recorded_utilisation || 0) * (st.capacity_m3 || 0);
+  $("setVolume").textContent =
+    `${fmt(volume)} m3 (${fmt((obs.recorded_utilisation || 0) * 100, 0)}%)`;
+  // evidence the planner has actually seen, which is all there is to go on
+  // remember every order that has been seen overdue, so the count is cumulative
+  // rather than "overdue right now"
+  (obs.open_purchase_orders || []).forEach((po) => {
+    if (Number(po.promised_arrival) < Number(obs.day)) state.lateIds.add(po.po_id);
+  });
+  const surge = (obs.production_log || []).reduce(
+    (acc, row) => acc + Math.max(0, (row.required ?? row.planned) - row.planned), 0,
+  );
+  $("setLate").textContent = String(state.lateIds.size);
+  $("setSurge").textContent = `${surge}`;
+  $("setProducts").textContent = String(Object.keys(st.mps || {}).length);
+  $("setComponents").textContent = String((st.suppliers || []).length);
+  $("setActionsLeft").textContent = String(actionsLeft);
+
+  const sup = {};
+  (st.suppliers || []).forEach((s) => { sup[s.sku] = s; });
+
+  const invBody = $("invBody");
+  clear(invBody);
+  (obs.inventory || []).forEach((row) => {
+    const s = sup[row.sku] || {};
+    const seen = state.priceHistory[row.sku] || [row.unit_price_today];
+    const change = row.unit_price_change || 0;
+    const tr = document.createElement("tr");
+    tr.appendChild(cell(row.sku));
+    tr.appendChild(cell(row.recorded_on_hand, row.recorded_on_hand < 0 ? "neg" : ""));
+    tr.appendChild(cell(row.on_order));
+    tr.appendChild(cell(s.lead_time_days));
+    tr.appendChild(cell(`${s.moq ?? "-"} / ${s.lot_size ?? "-"}`));
+    tr.appendChild(cell(fmt(s.unit_volume, 3)));
+    tr.appendChild(cell(fmt(s.unit_cost)));
+    tr.appendChild(cell(fmt(row.unit_price_today)));
+    tr.appendChild(cell(
+      change === 0 ? "-" : `${change > 0 ? "+" : ""}${fmt(change * 100, 1)}%`,
+      change > 0.0001 ? "neg" : change < -0.0001 ? "good" : "",
+    ));
+    tr.appendChild(cell(fmt(Math.min(...seen))));
+    tr.appendChild(cell(fmt(Math.max(...seen))));
+    tr.appendChild(cell(sparkline(seen), "spark"));
+    invBody.appendChild(tr);
+  });
+
+  const poBody = $("poBody");
+  clear(poBody);
+  const pos = obs.open_purchase_orders || [];
+  $("poEmpty").style.display = pos.length ? "none" : "block";
+  pos.forEach((po) => {
+    const late = Number(po.promised_arrival) < Number(obs.day);
+    const tr = document.createElement("tr");
+    tr.appendChild(cell(po.po_id));
+    tr.appendChild(cell(po.sku));
+    tr.appendChild(cell(po.qty));
+    tr.appendChild(cell(po.placed_day));
+    tr.appendChild(cell(po.promised_arrival, late ? "neg" : ""));
+    tr.appendChild(cell(late ? "OVERDUE" : po.status, late ? "neg" : ""));
+    poBody.appendChild(tr);
+  });
+
+  renderPlan(obs, st);
+
+  renderProductionLog(obs);
+  renderEvents(obs);
+
+  fillSelect($("poSku"), (st.suppliers || []).map((s) => s.sku));
+  updatePoHint();
+
+  const live = !obs.done && !state.busy;
+  $("poBtn").disabled = !live;
+  $("nextBtn").disabled = !live;
+  $("runOutBtn").disabled = !live;
+  $("verifyBtn").disabled = !obs.done || state.busy;
+}
+
+function renderProductionLog(obs) {
+  const host = $("prodLog");
+  clear(host);
+  const rows = (obs.production_log || []).filter((r) => (r.required ?? r.planned) > 0);
+  if (!rows.length) return;
+
+  const table = document.createElement("table");
+  table.className = "mini";
+  const head = table.createTHead().insertRow();
+  ["Day", "Product", "Forecast", "Required", "Made", ""].forEach((label) => {
+    const th = document.createElement("th");
+    th.textContent = label;
+    head.appendChild(th);
+  });
+
+  const body = table.createTBody();
+  rows.slice(-60).reverse().forEach((r) => {
+    const required = r.required ?? r.planned;
+    const short = r.completed < required;
+    const rush = required > r.planned;
+    const tr = document.createElement("tr");
+    tr.className = short ? "short" : rush ? "rush" : "";
+    tr.appendChild(cell(r.day));
+    tr.appendChild(cell(r.product));
+    tr.appendChild(cell(r.planned));
+    tr.appendChild(cell(required, rush ? "neg" : ""));
+    tr.appendChild(cell(r.completed, short ? "neg" : ""));
+
+    const td = document.createElement("td");
+    const tag = document.createElement("span");
+    tag.className = "tag " + (short ? "short" : rush ? "rush" : "ok");
+    tag.textContent = short ? "SHORT" : rush ? "RUSH" : "OK";
+    td.appendChild(tag);
+    tr.appendChild(td);
+    body.appendChild(tr);
+  });
+  host.appendChild(table);
+}
+
+function eventKind(line) {
+  if (/INVALID|short:|starv/i.test(line)) return "bad";
+  if (/rush order/i.test(line)) return "rush";
+  if (/goods receipt/i.test(line)) return "receipt";
+  if (/PO .* placed/i.test(line)) return "order";
+  return "";
+}
+
+function renderEvents(obs) {
+  const host = $("eventLog");
+  clear(host);
+  (obs.last_events || []).slice().reverse().forEach((line) => {
+    const match = /^day (\d+): (.*)$/.exec(line);
+    const row = document.createElement("div");
+    row.className = ("ev " + eventKind(line)).trim();
+
+    const day = document.createElement("span");
+    day.className = "day";
+    day.textContent = match ? `d${match[1]}` : "";
+    const msg = document.createElement("span");
+    msg.className = "msg";
+    msg.textContent = match ? match[2] : line;
+
+    row.appendChild(day);
+    row.appendChild(msg);
+    host.appendChild(row);
+  });
+}
+
+function renderPlan(obs, st) {
+  const table = $("planTable");
+  const head = table.tHead, body = table.tBodies[0];
+  clear(head); clear(body);
+  const products = Object.keys(st.mps || {}).sort();
+  const skus = Object.keys(st.requirements || {}).sort();
+
+  const hr = document.createElement("tr");
+  ["Day", ...products, ...skus].forEach((label, i) => {
+    const th = document.createElement("th");
+    th.textContent = i === 0 ? "Day" : (i <= products.length ? label : `${label} Req`);
+    hr.appendChild(th);
+  });
+  head.appendChild(hr);
+
+  for (let t = 0; t < st.horizon; t++) {
+    const tr = document.createElement("tr");
+    if (t === obs.day) tr.className = "today";
+    tr.appendChild(cell(t));
+    products.forEach((p) => tr.appendChild(cell((st.mps[p] || [])[t] ?? 0)));
+    skus.forEach((s) => tr.appendChild(cell((st.requirements[s] || [])[t] ?? 0)));
+    body.appendChild(tr);
+  }
+}
+
+function fillSelect(select, values) {
+  const current = select.value;
+  if (select.options.length === values.length &&
+      Array.from(select.options).every((o, i) => o.value === values[i])) return;
+  clear(select);
+  values.forEach((v) => {
+    const opt = document.createElement("option");
+    opt.value = v; opt.textContent = v;
+    select.appendChild(opt);
+  });
+  if (values.includes(current)) select.value = current;
+}
+
+function updatePoHint() {
+  const st = state.static;
+  const hint = $("poHint");
+  if (!st) { hint.textContent = ""; return; }
+  const sku = $("poSku").value;
+  const sup = (st.suppliers || []).find((s) => s.sku === sku);
+  const qty = Number($("poQty").value);
+  if (!sup) { hint.textContent = ""; return; }
+  if (!$("poQty").value) {
+    hint.textContent = `${sku}: MOQ ${sup.moq}, Lot ${sup.lot_size}, Lead ${sup.lead_time_days} d`;
+    return;
+  }
+  const problems = [];
+  if (!Number.isInteger(qty)) problems.push("qty must be a whole number");
+  if (qty < sup.moq) problems.push(`below MOQ ${sup.moq}`);
+  if (Number.isInteger(qty) && qty % sup.lot_size !== 0) problems.push(`not a multiple of ${sup.lot_size}`);
+  hint.textContent = problems.length
+    ? `${problems.join("; ")} - the ERP will log this as INVALID`
+    : `OK: ${fmt(qty * sup.unit_cost)} EUR, promised day ${Number(state.obs.day) + sup.lead_time_days}`;
+}
+
+/* ---------- actions -------------------------------------------------- */
+
+async function withBusy(label, fn) {
+  if (state.busy) return;
+  state.busy = true;
+  draw();
+  try {
+    await fn();
+    clearError();
+  } catch (err) {
+    if (err.status === 404) {
+      showError("this episode is gone (server restarted or it expired) - start a new one", 404);
+      state.episodeId = null; state.finished = true;
+    } else if (err.status === 409) {
+      showError(`${label}: ${err.message}`, 409);
+    } else {
+      showError(`${label}: ${err.message}`, err.status || undefined);
+    }
+  } finally {
+    state.busy = false;
+    draw();
+  }
+}
+
+const SEED_RANGE = 100000;  // a scenario is fully determined by (tier, seed)
+
+async function newEpisode() {
+  const tier = $("tier").value;
+  // a fresh random scenario every time, so a player cannot learn one instance by heart
+  const seed = Math.floor(Math.random() * SEED_RANGE);
+  state.tier = tier;
+  state.seed = seed;
+  await withBusy("new episode", async () => {
+    const data = await api("/episodes", { method: "POST", body: { tier, seed }, timeout: 20000 });
+    state.episodeId = data.episode_id;
+    state.obs = data.observation;
+    state.static = data.static;
+    state.instruction = data.instruction;
+    state.finished = !!data.observation.done;
+    state.verified = null;
+    state.priceHistory = {};
+    state.priceDay = null;
+    state.lateIds = new Set();
+    $("verdictPanel").style.display = "none";
+    $("poQty").value = "";
+    showNote("");  // the scenario's parameters live in the Settings box, not in a banner
+  });
+}
+
+async function doStep(tool, args) {
+  if (!state.episodeId) { showError("no episode - press “New episode”"); return; }
+  await withBusy(tool, async () => {
+    const data = await api(`/episodes/${state.episodeId}/step`, {
+      method: "POST", body: { tool, args: args || {} },
+    });
+    state.obs = data.observation;
+    state.finished = data.terminated || data.truncated;
+    const out = data.tool_output || {};
+    if (out.error) showError(`${tool} rejected: ${out.error} - ${out.message || ""}`);
+    if (data.terminated && !out.error) showNote("Episode closed. Press Verify for the score.");
+    if (data.truncated) showNote("Step limit reached: the remaining days were fast-forwarded.");
+  });
+  if (state.finished) await doVerify();
+}
+
+async function runOutHorizon() {
+  // no submit action exists: closing an episode means advancing to the last day
+  const guard = (state.static?.horizon ?? 0) + 2;
+  for (let i = 0; i < guard; i++) {
+    if (!state.obs || state.obs.done || state.lastError) break;
+    await doStep("advance_day");
+  }
+}
+
+async function doVerify() {
+  if (!state.episodeId || !state.obs || !state.obs.done) return;
+  await withBusy("verify", async () => {
+    const res = await api(`/episodes/${state.episodeId}/verify`, { method: "POST", timeout: 30000 });
+    state.verified = res;
+    $("verdictPanel").style.display = "block";
+    const v = $("verdict");
+    v.textContent = res.score === 1 ? "PASS (reward 1)" : "FAIL (reward 0)";
+    v.className = "verdict " + (res.score === 1 ? "pass" : "fail");
+    $("verdictNote").textContent = res.score === 1
+      ? "Every production run served in full, warehouse and budget respected - checked by "
+        + "replaying your orders against the actual stock, not the ERP records."
+      : "The verifier replayed your orders against the actual stock, not the ERP records. "
+        + "What went wrong:";
+    // the sentences are what a person reads; the codes are the machine contract and
+    // stay available for anyone debugging against the API
+    const ul = $("reasons");
+    clear(ul);
+    const sentences = (res.explanations && res.explanations.length)
+      ? res.explanations
+      : (res.reasons || []);
+    sentences.slice(0, 40).forEach((line) => {
+      const li = document.createElement("li");
+      li.textContent = line;
+      ul.appendChild(li);
+    });
+
+    const codes = $("codes");
+    clear(codes);
+    (res.reasons || []).forEach((code) => {
+      const div = document.createElement("div");
+      div.textContent = code;
+      codes.appendChild(div);
+    });
+    $("codesBox").style.display = (res.reasons || []).length ? "block" : "none";
+    const d = res.diagnostics || {};
+    $("diagnostics").textContent =
+      `Service ${fmt((d.service_level || 0) * 100, 1)}% | Spend ${fmt(d.spend)} EUR ` +
+      `(${fmt((d.spend_over_budget || 0) * 100, 0)}% of budget) | Peak Volume ` +
+      `${fmt((d.peak_over_capacity || 0) * 100, 0)}% of capacity | POs ${d.purchase_orders || 0} ` +
+      `| Counts ${d.cycle_counts || 0} | Max Record Error ${d.max_record_error || 0}`;
+  });
+}
+
+/* ---------- wiring --------------------------------------------------- */
+
+function wire() {
+  $("newEp").addEventListener("click", newEpisode);
+  $("nextBtn").addEventListener("click", () => doStep("advance_day"));
+  $("runOutBtn").addEventListener("click", runOutHorizon);
+  $("verifyBtn").addEventListener("click", doVerify);
+  $("poBtn").addEventListener("click", () => {
+    const raw = $("poQty").value.trim();
+    const qty = Number(raw);
+    if (raw === "" || !Number.isFinite(qty)) { showError("enter an order quantity first"); return; }
+    doStep("create_purchase_order", { sku: $("poSku").value, qty: Math.trunc(qty) });
+  });
+  $("poQty").addEventListener("input", updatePoHint);
+  $("poSku").addEventListener("change", updatePoHint);
+  $("poQty").addEventListener("keydown", (e) => { if (e.key === "Enter") $("poBtn").click(); });
+  document.addEventListener("keydown", (e) => {
+    if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
+    if (e.key === "n") $("nextBtn").click();
+    if (e.key === "v") $("verifyBtn").click();
+  });
+  window.addEventListener("unhandledrejection", (e) => {
+    showError("unexpected error: " + (e.reason && e.reason.message ? e.reason.message : e.reason));
+  });
+}
+
+async function boot() {
+  wire();
+  try {
+    const health = await api("/health", { timeout: 4000 });
+    if (health.debug_reveal) $("ver").textContent = "· DEBUG REVEAL ON";
+  } catch (err) {
+    showError("cannot reach the server: " + err.message);
+    return;
+  }
+  await newEpisode();
+}
+
+boot();
+</script>
+</body>
+</html>

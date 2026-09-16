@@ -1,0 +1,13 @@
+services:
+  env:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports: ["8000:8000"]
+    environment:
+      # set a real key before using scores from this server for anything
+      MRPENV_LEDGER_KEY: ${MRPENV_LEDGER_KEY:-dev-only-insecure-key}
+      MRPENV_DEBUG_REVEAL: ${MRPENV_DEBUG_REVEAL:-0}
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]

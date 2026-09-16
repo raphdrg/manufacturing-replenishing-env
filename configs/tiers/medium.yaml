@@ -1,0 +1,28 @@
+# medium - two products sharing components, plus a maintenance shutdown. Noise-free ERP.
+name: medium
+tier_id: 1
+n_products: 2
+n_components: 5
+min_shared: 2
+horizon: 15
+bom_values: [1, 2, 4]
+production_prob: 0.6
+batch_mu: [5, 20]
+batch_sigma: 0.3
+shutdown_days: [2, 2]
+lead_time: [1, 5]
+lot_sizes: [1, 5, 10]
+moq_mult: [1, 2]
+unit_cost_logu: [0.5, 50.0]
+unit_volume: [0.05, 1.0]
+price_volatility: [0.01, 0.03]  # quotes drift a little
+eta: [0.0, 0.0]                # ERP records are exact
+late_delivery_prob: 0.12
+late_delivery_days: [1, 2]
+demand_surge_prob: 0.04       # the odd rush order
+demand_surge_frac: [0.10, 0.25]
+capacity_slack: [0.15, 0.30]
+budget_slack: 0.30   # the oracle plan is maximally lean; buffers cost money
+noise:
+  shrink: true
+  short_delivery: true

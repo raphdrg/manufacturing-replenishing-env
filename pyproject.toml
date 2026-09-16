@@ -1,0 +1,53 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mrpenv"
+version = "0.1.0"
+description = "A verifiable material-replenishment environment for LLM and computer-use agents"
+readme = "README.md"
+# the only Python requirement; there is no separate .python-version file
+requires-python = ">=3.12"
+authors = [{ name = "Raphael Drag" }]
+license = { text = "MIT" }
+keywords = ["reinforcement-learning", "llm-agents", "manufacturing", "erp", "environment"]
+# Everything the three documented commands need, so `uv run mrpenv serve|run|eval`
+# works from a clean clone with no flags and no extras to remember.
+dependencies = [
+  "pydantic>=2.6",
+  "numpy>=1.26",
+  "pyyaml>=6.0",
+  "typer>=0.12",
+  "rich>=13.7",
+  "fastapi>=0.110",
+  "uvicorn[standard]>=0.29",
+  "matplotlib>=3.8",
+]
+
+[project.optional-dependencies]
+dev = ["ruff>=0.5", "mypy>=1.10"]
+
+[project.scripts]
+mrpenv = "mrpenv.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mrpenv"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+ignore = ["B008", "RUF012"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src/mrpenv"]
+
+[[tool.mypy.overrides]]
+module = ["yaml", "numpy.*", "matplotlib.*"]
+ignore_missing_imports = true
